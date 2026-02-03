@@ -8,6 +8,7 @@ from .plot_controls import PlotControls
 from .filter_panel import FilterPanel
 from .style_panel import StylePanel
 from .export_panel import ExportPanel
+from .calculated_signal_panel import CalculatedSignalPanel
 
 __all__ = [
     'FilePanel',
@@ -18,4 +19,5 @@ __all__ = [
     'FilterPanel',
     'StylePanel',
     'ExportPanel',
+    'CalculatedSignalPanel',
 ]

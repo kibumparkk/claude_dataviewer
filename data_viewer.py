@@ -19,7 +19,7 @@ from PyQt6.QtCore import QEvent
 from data_loader import DataLoader, MultiFileLoader, INDEX_COLUMN, FILE_INDEX_COLUMN
 from plot_canvas import PlotWidget
 from sampling import apply_sampling
-from widgets import FilePanel, XAxisSelector, YAxisSelectorGrid, PlotControls, FilterPanel, StylePanel, ExportPanel
+from widgets import FilePanel, XAxisSelector, YAxisSelectorGrid, PlotControls, FilterPanel, StylePanel, ExportPanel, CalculatedSignalPanel
 
 
 class DataViewer(QMainWindow):
@@ -105,6 +105,10 @@ class DataViewer(QMainWindow):
         style_tab = self._create_style_tab()
         self.tab_widget.addTab(style_tab, "Style")
 
+        # Calculated signals tab
+        calc_tab = self._create_calculated_tab()
+        self.tab_widget.addTab(calc_tab, "Calc")
+
         # Export tab
         export_tab = self._create_export_tab()
         self.tab_widget.addTab(export_tab, "Export")
@@ -182,6 +186,19 @@ class DataViewer(QMainWindow):
 
         return tab
 
+    def _create_calculated_tab(self) -> QWidget:
+        """Create the Calculated Signals tab content."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+
+        # Calculated signal panel
+        self.calc_panel = CalculatedSignalPanel()
+        self.calc_panel.set_data_callback(self._get_current_dataframe)
+        self.calc_panel.columnsChanged.connect(self._on_calculated_columns_changed)
+        layout.addWidget(self.calc_panel)
+
+        return tab
+
     def _create_export_tab(self) -> QWidget:
         """Create the Export tab content."""
         tab = QWidget()
@@ -234,6 +251,27 @@ class DataViewer(QMainWindow):
     def _get_export_figure(self):
         """Get plot figure for export."""
         return self.plot_widget.canvas.fig
+
+    def _get_current_dataframe(self):
+        """Get current DataFrame for calculated signals."""
+        if not self._current_loader:
+            return None
+        try:
+            # Load all columns
+            columns = self._current_loader.get_columns()
+            df = self.file_loader.load_columns_merged(columns)
+            return df
+        except Exception:
+            return None
+
+    def _on_calculated_columns_changed(self):
+        """Handle calculated columns change."""
+        self._update_merged_columns()
+
+    def _refresh_calculated_signals(self):
+        """Refresh calculated signals with current data."""
+        if hasattr(self, 'calc_panel'):
+            self.calc_panel.refresh_all_signals()
 
     def _connect_signals(self):
         """Connect signals to slots."""
@@ -306,6 +344,8 @@ class DataViewer(QMainWindow):
                 self._current_loader = loader
                 # Update merged columns from all files
                 self._update_merged_columns()
+                # Refresh calculated signals with new data
+                self._refresh_calculated_signals()
                 self.status_bar.showMessage(f"Loaded: {loader.file_name}")
 
             progress.close()
@@ -369,6 +409,14 @@ class DataViewer(QMainWindow):
         # Sort columns, separating virtual columns
         virtual_cols = {INDEX_COLUMN, FILE_INDEX_COLUMN}
         sorted_columns = sorted(all_columns_set - virtual_cols)
+
+        # Add calculated columns
+        if hasattr(self, 'calc_panel'):
+            calc_columns = self.calc_panel.get_calculated_columns()
+            sorted_columns = sorted_columns + calc_columns
+            # Update calc panel with available columns (excluding calc columns to avoid recursion)
+            base_columns = sorted(all_columns_set - virtual_cols)
+            self.calc_panel.set_columns(list(virtual_cols) + base_columns)
 
         # Virtual columns list (in order)
         virtual_list = []
@@ -465,10 +513,28 @@ class DataViewer(QMainWindow):
             # Also include columns needed for filtering
             filter_conditions = self.filter_panel.get_filter_conditions()
             filter_columns = {c["column"] for c in filter_conditions}
-            columns_to_load = list(all_x_signals | all_y_signals | filter_columns)
+
+            # Check if any selected signals are calculated signals
+            calc_columns = set()
+            if hasattr(self, 'calc_panel'):
+                calc_columns = set(self.calc_panel.get_calculated_columns())
+
+            selected_calc_signals = (all_x_signals | all_y_signals) & calc_columns
+
+            if selected_calc_signals:
+                # If calculated signals are selected, load all available columns
+                # because we need base columns for the calculations
+                columns_to_load = self.file_loader.get_all_columns()
+            else:
+                columns_to_load = list(all_x_signals | all_y_signals | filter_columns)
 
             # Load merged data from all files (handles different columns across files)
             df = self.file_loader.load_columns_merged(columns_to_load)
+
+            # Apply calculated signals
+            if hasattr(self, 'calc_panel') and selected_calc_signals:
+                df = self.calc_panel.apply_to_dataframe(df)
+
             progress.setValue(30)
             QApplication.processEvents()
 

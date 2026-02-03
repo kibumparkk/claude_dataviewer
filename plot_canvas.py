@@ -190,12 +190,11 @@ class PlotCanvas(FigureCanvas):
         self.draw()
 
     def _configure_axis_labels(self):
-        """Configure axis labels to show only on left and bottom edges."""
+        """Configure axis labels to show only on bottom edges for shared X."""
         for i, ax in enumerate(self.axes):
             if self._share_x and i < 2:
+                # Hide x-tick labels on top row when sharing X axis
                 ax.tick_params(labelbottom=False)
-            if i in (1, 3):
-                ax.tick_params(labelleft=False)
 
     def _on_click(self, event):
         """Handle mouse click event for data cursor."""
