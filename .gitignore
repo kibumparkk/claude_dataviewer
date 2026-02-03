@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Data files
+*.parquet
+*.csv
+*.xlsx
+*.ftr
+*.feather
+
+# Export files
+*.png
+*.jpg
+*.svg
+*.pdf
+
+# IDE
+.vscode/
+.idea/
+
+# Claude
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
